@@ -20,6 +20,36 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm test
+      # Flaky-test trending: the history folder is restored from the
+      # previous run's cache, this run is ingested, and the report goes
+      # into the job summary (and into playwright-report/, so it rides
+      # along with the uploaded artifact below). The cache is then saved
+      # under a run-unique key — caches are immutable, so each run saves
+      # a new snapshot and restore-keys picks the newest.
+      - name: Restore flaky-test history
+        uses: actions/cache/restore@v4
+        with:
+          path: .artifacts/flaky-history
+          key: flaky-history-${{ github.run_id }}
+          restore-keys: |
+            flaky-history-
+      - name: Update flaky-test report
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -f test-results/results.json ]; then
+            npm run report:flaky -- --ingest test-results/results.json
+          else
+            npm run report:flaky
+          fi
+          if [ -f playwright-report/flaky-report.md ]; then
+            cat playwright-report/flaky-report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save flaky-test history
+        uses: actions/cache/save@v4
+        if: ${{ !cancelled() }}
+        with:
+          path: .artifacts/flaky-history
+          key: flaky-history-${{ github.run_id }}
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
