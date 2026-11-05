@@ -1,0 +1,40 @@
+{
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^16.4.0",
+    "exceljs": "^4.4.0",
+    "zod": "^4.6.7"
+  },
+  "description": "Playwright + TypeScript portfolio framework: UI, API and cross-layer parity testing with storage-state auth, layered helpers, and custom reporting.",
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "name": "playwright-framework",
+  "private": true,
+  "scripts": {
+    "install:browsers": "playwright install chromium",
+    "report:open": "playwright show-report",
+    "test": "playwright test",
+    "test:api": "playwright test --project=api",
+    "test:cross": "playwright test --project=cross-layer",
+    "test:regression": "playwright test --grep @regression",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:ui": "playwright test --project=ui",
+    "test:ui:headed": "playwright test --project=ui --headed",
+    "typecheck": "tsc --noEmit",
+    "test:same-system": "playwright test --project=same-system",
+    "report:flaky": "tsx scripts/flaky-report.ts",
+    "test:unit": "playwright test --project=unit"
+  },
+  "version": "1.0.0",
+  "overrides": {
+    "uuid": "11.1.1"
+  }
+}
