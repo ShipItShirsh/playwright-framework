@@ -10,6 +10,7 @@ export const routes = {
   checkoutInfo: '/checkout-step-one.html',
   checkoutOverview: '/checkout-step-two.html',
   checkoutComplete: '/checkout-complete.html',
+  orders: '/orders.html',
 } as const;
 
 export const sel = {
@@ -35,4 +36,11 @@ export const sel = {
   summaryTax: '.summary_tax_label',
   summaryTotal: '.summary_total_label',
   addToCartButton: (slug: string) => `[data-test="add-to-cart-${slug}"]`,
+  orderHistoryLink: '[data-test="order-history-link"]',
+  orderRow: '[data-test="order-row"]',
+  orderId: '[data-test="order-id"]',
+  orderSubtotal: '[data-test="order-subtotal"]',
+  orderTax: '[data-test="order-tax"]',
+  orderTotal: '[data-test="order-total"]',
+  ordersEmpty: '[data-test="orders-empty"]',
 } as const;

@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import ExcelJS from 'exceljs';
-import { STORE_DB_PATH, type StoreOrder, type StoreProduct } from '../sut/store-server';
+import { storeDbPath, type StoreOrder, type StoreProduct } from '../sut/store-server';
 
 /**
  * Tasks-layer helpers for the same-system store: read the SUT's SQLite
@@ -10,7 +10,7 @@ import { STORE_DB_PATH, type StoreOrder, type StoreProduct } from '../sut/store-
  * system they are verifying.
  */
 export function readStoreProducts(): StoreProduct[] {
-  const db = new Database(STORE_DB_PATH, { readonly: true });
+  const db = new Database(storeDbPath(), { readonly: true });
   try {
     const rows = db.prepare('SELECT slug, name, price_cents FROM products ORDER BY name').all() as {
       slug: string;
@@ -24,7 +24,7 @@ export function readStoreProducts(): StoreProduct[] {
 }
 
 export function readStoreOrder(id: number): StoreOrder | undefined {
-  const db = new Database(STORE_DB_PATH, { readonly: true });
+  const db = new Database(storeDbPath(), { readonly: true });
   try {
     const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(id) as
       | { id: number; customer: string; subtotal_cents: number; tax_cents: number; total_cents: number }
@@ -48,8 +48,41 @@ export function readStoreOrder(id: number): StoreOrder | undefined {
   }
 }
 
+export function readStoreOrdersByCustomer(customer: string): StoreOrder[] {
+  const db = new Database(storeDbPath(), { readonly: true });
+  try {
+    const rows = db.prepare('SELECT id FROM orders WHERE customer = ? ORDER BY id DESC').all(customer) as {
+      id: number;
+    }[];
+    return rows.map((r) => {
+      const row = db.prepare('SELECT * FROM orders WHERE id = ?').get(r.id) as {
+        id: number;
+        customer: string;
+        subtotal_cents: number;
+        tax_cents: number;
+        total_cents: number;
+      };
+      const lines = db
+        .prepare(
+          'SELECT l.slug, p.name, l.qty, l.unit_price_cents FROM order_lines l JOIN products p ON p.slug = l.slug WHERE l.order_id = ?',
+        )
+        .all(r.id) as { slug: string; name: string; qty: number; unit_price_cents: number }[];
+      return {
+        id: row.id,
+        customer: row.customer,
+        items: lines.map((l) => ({ slug: l.slug, name: l.name, qty: l.qty, unitPrice: l.unit_price_cents / 100 })),
+        subtotal: row.subtotal_cents / 100,
+        tax: row.tax_cents / 100,
+        total: row.total_cents / 100,
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export function countStoreOrders(): number {
-  const db = new Database(STORE_DB_PATH, { readonly: true });
+  const db = new Database(storeDbPath(), { readonly: true });
   try {
     const row = db.prepare('SELECT COUNT(*) AS n FROM orders').get() as { n: number };
     return row.n;

@@ -117,6 +117,17 @@ docs/ARCHITECTURE.md           Design decisions and tradeoffs
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the longer version.
 
+## Spec-driven development
+
+New features in this repo are specified before they are built, using
+GitHub's Spec Kit. The rules every feature follows are in
+[.specify/memory/constitution.md](.specify/memory/constitution.md) —
+the layering, hard-assertion, and parity principles above, written
+down as gates. The first feature built this way is the demo store's
+order history: its spec, plan, and task list are in
+[specs/001-order-history/](specs/001-order-history/), and its tests
+are `tests/same-system/order-history.spec.ts`.
+
 ## Author
 
 Shirsh Malviya — QA Engineering Lead / Senior SDET, ~13 years in test automation

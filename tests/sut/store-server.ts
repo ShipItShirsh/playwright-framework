@@ -51,11 +51,22 @@ const cents = (dollars: number): number => Math.round(dollars * 100);
 const dollars = (c: number): number => c / 100;
 const fmt = (c: number): string => (c / 100).toFixed(2);
 
+/**
+ * The database file for this process. Spec files in the same-system
+ * project run in parallel workers against this one data directory, so
+ * a spec file that needs isolation sets STORE_DB_FILE in beforeAll
+ * and gets its own file; the default keeps the original single file.
+ */
+export function storeDbPath(): string {
+  return process.env.STORE_DB_FILE ? join(dirname(STORE_DB_PATH), process.env.STORE_DB_FILE) : STORE_DB_PATH;
+}
+
 function initDb(): Database.Database {
   // A fresh clone may not contain the data directory (git does not
   // track empty directories), so create it rather than assuming it.
-  mkdirSync(dirname(STORE_DB_PATH), { recursive: true });
-  const db = new Database(STORE_DB_PATH);
+  const dbPath = storeDbPath();
+  mkdirSync(dirname(dbPath), { recursive: true });
+  const db = new Database(dbPath);
   db.exec(`
     CREATE TABLE IF NOT EXISTS products (
       slug TEXT PRIMARY KEY,
@@ -145,6 +156,15 @@ function getOrder(db: Database.Database, id: number): StoreOrder | undefined {
   };
 }
 
+function listOrders(db: Database.Database, customer: string): StoreOrder[] {
+  // Hydrate through getOrder so the list view and the single-order
+  // view can never disagree about an order's shape or totals.
+  const rows = db.prepare('SELECT id FROM orders WHERE customer = ? ORDER BY id DESC').all(customer) as {
+    id: number;
+  }[];
+  return rows.map((r) => getOrder(db, r.id)).filter((o): o is StoreOrder => Boolean(o));
+}
+
 function listProducts(db: Database.Database): StoreProduct[] {
   const rows = db.prepare('SELECT slug, name, price_cents FROM products ORDER BY name').all() as {
     slug: string;
@@ -222,7 +242,10 @@ function inventoryPage(db: Database.Database, session: Session): string {
     )
     .join('');
   const badge = session.cart.length ? `<span class="shopping_cart_badge">${session.cart.length}</span>` : '';
-  return page('Products', `<a class="shopping_cart_link" href="/cart.html">${badge}</a><div class="inventory_list">${items}</div>`);
+  return page(
+    'Products',
+    `<a data-test="order-history-link" href="/orders.html">Order history</a><a class="shopping_cart_link" href="/cart.html">${badge}</a><div class="inventory_list">${items}</div>`,
+  );
 }
 
 function cartPage(db: Database.Database, session: Session): string {
@@ -264,6 +287,28 @@ function checkoutOverviewPage(db: Database.Database, session: Session): string {
        <button data-test="finish" type="submit">Finish</button>
      </form>`,
   );
+}
+
+function ordersPage(db: Database.Database, session: Session): string {
+  const orders = listOrders(db, session.user);
+  if (orders.length === 0) {
+    return page('Order History', `<h2>Order History</h2><p data-test="orders-empty">You have no orders yet.</p>`);
+  }
+  const rows = orders
+    .map((o) => {
+      const items = o.items
+        .map((i) => `<div class="order_item"><span class="inventory_item_name">${i.name}</span> x${i.qty}</div>`)
+        .join('');
+      return `<div class="order" data-test="order-row">
+        <div>Order <span data-test="order-id">${o.id}</span></div>
+        ${items}
+        <div data-test="order-subtotal">Item total: $${o.subtotal.toFixed(2)}</div>
+        <div data-test="order-tax">Tax: $${o.tax.toFixed(2)}</div>
+        <div data-test="order-total">Total: $${o.total.toFixed(2)}</div>
+      </div>`;
+    })
+    .join('');
+  return page('Order History', `<h2>Order History</h2>${rows}`);
 }
 
 function completePage(orderId: number): string {
@@ -316,6 +361,11 @@ export async function startStoreServer(port = 0): Promise<RunningStore> {
         const result = createOrder(db, body.customer, body.items);
         return 'error' in result ? sendJson(res, 400, result) : sendJson(res, 201, result);
       }
+      if (path === '/api/orders' && req.method === 'GET') {
+        const customer = url.searchParams.get('customer');
+        if (!customer) return sendJson(res, 400, { error: 'customer query parameter is required' });
+        return sendJson(res, 200, listOrders(db, customer));
+      }
       const orderMatch = path.match(/^\/api\/orders\/(\d+)$/);
       if (orderMatch && req.method === 'GET') {
         const order = getOrder(db, Number(orderMatch[1]));
@@ -365,6 +415,7 @@ export async function startStoreServer(port = 0): Promise<RunningStore> {
         return redirect(res, '/inventory.html');
       }
       if (path === '/cart.html') return send(res, 200, cartPage(db, session));
+      if (path === '/orders.html') return send(res, 200, ordersPage(db, session));
       if (path === '/checkout-step-one.html') return send(res, 200, checkoutInfoPage());
       if (path === '/checkout-step-two' && req.method === 'POST') {
         await readBody(req); // customer info accepted; the demo does not persist it
