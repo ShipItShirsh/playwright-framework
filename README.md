@@ -118,10 +118,11 @@ New features in this repo are specified before they are built, using
 GitHub's Spec Kit. The rules every feature follows are in
 [.specify/memory/constitution.md](.specify/memory/constitution.md) —
 the layering, hard-assertion, and parity principles above, written
-down as gates. The first feature built this way is the demo store's
-order history: its spec, plan, and task list are in
-[specs/001-order-history/](specs/001-order-history/), and its tests
-are `tests/same-system/order-history.spec.ts`.
+down as gates. The features built this way so far are the demo store's
+order history ([specs/001-order-history/](specs/001-order-history/),
+tests in `tests/same-system/order-history.spec.ts`) and its order
+detail page ([specs/002-order-detail/](specs/002-order-detail/),
+tests in `tests/same-system/order-detail.spec.ts`).
 
 ## License
 

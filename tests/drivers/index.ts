@@ -11,6 +11,7 @@ export const routes = {
   checkoutOverview: '/checkout-step-two.html',
   checkoutComplete: '/checkout-complete.html',
   orders: '/orders.html',
+  orderDetail: (id: number) => `/order.html?id=${id}`,
 } as const;
 
 export const sel = {
@@ -43,4 +44,9 @@ export const sel = {
   orderTax: '[data-test="order-tax"]',
   orderTotal: '[data-test="order-total"]',
   ordersEmpty: '[data-test="orders-empty"]',
+  orderDetailLink: '[data-test="order-detail-link"]',
+  orderDetail: '[data-test="order-detail"]',
+  orderLine: '[data-test="order-line"]',
+  lineTotal: '[data-test="line-total"]',
+  orderNotFound: '[data-test="order-not-found"]',
 } as const;

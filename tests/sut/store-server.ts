@@ -300,7 +300,7 @@ function ordersPage(db: Database.Database, session: Session): string {
         .map((i) => `<div class="order_item"><span class="inventory_item_name">${i.name}</span> x${i.qty}</div>`)
         .join('');
       return `<div class="order" data-test="order-row">
-        <div>Order <span data-test="order-id">${o.id}</span></div>
+        <div>Order <span data-test="order-id">${o.id}</span> <a data-test="order-detail-link" href="/order.html?id=${o.id}">View order</a></div>
         ${items}
         <div data-test="order-subtotal">Item total: $${o.subtotal.toFixed(2)}</div>
         <div data-test="order-tax">Tax: $${o.tax.toFixed(2)}</div>
@@ -309,6 +309,29 @@ function ordersPage(db: Database.Database, session: Session): string {
     })
     .join('');
   return page('Order History', `<h2>Order History</h2>${rows}`);
+}
+
+function orderNotFoundPage(): string {
+  return page('Order Not Found', `<h2 data-test="order-not-found">Order not found</h2>`);
+}
+
+function orderDetailPage(order: StoreOrder): string {
+  const lines = order.items
+    .map(
+      (i) =>
+        `<div class="order_line" data-test="order-line"><span class="inventory_item_name">${i.name}</span> x${i.qty} — $${i.unitPrice.toFixed(2)} each — <span data-test="line-total">$${(i.qty * i.unitPrice).toFixed(2)}</span></div>`,
+    )
+    .join('');
+  return page(
+    `Order ${order.id}`,
+    `<div data-test="order-detail">
+       <h2>Order <span data-test="order-id">${order.id}</span></h2>
+       ${lines}
+       <div data-test="order-subtotal">Item total: $${order.subtotal.toFixed(2)}</div>
+       <div data-test="order-tax">Tax: $${order.tax.toFixed(2)}</div>
+       <div data-test="order-total">Total: $${order.total.toFixed(2)}</div>
+     </div>`,
+  );
 }
 
 function completePage(orderId: number): string {
@@ -416,6 +439,16 @@ export async function startStoreServer(port = 0): Promise<RunningStore> {
       }
       if (path === '/cart.html') return send(res, 200, cartPage(db, session));
       if (path === '/orders.html') return send(res, 200, ordersPage(db, session));
+      if (path === '/order.html') {
+        // One shared not-found response: another customer's order, a
+        // nonexistent id, and a malformed id are indistinguishable, so
+        // the response never confirms an order exists (spec 002 FR-003).
+        const raw = url.searchParams.get('id');
+        const id = raw !== null && /^\d+$/.test(raw) ? Number(raw) : NaN;
+        const order = Number.isNaN(id) ? undefined : getOrder(db, id);
+        if (!order || order.customer !== session.user) return send(res, 404, orderNotFoundPage());
+        return send(res, 200, orderDetailPage(order));
+      }
       if (path === '/checkout-step-one.html') return send(res, 200, checkoutInfoPage());
       if (path === '/checkout-step-two' && req.method === 'POST') {
         await readBody(req); // customer info accepted; the demo does not persist it
