@@ -178,9 +178,14 @@ function listProducts(db: Database.Database): StoreProduct[] {
 // HTTP plumbing + server-rendered UI (deliberately SauceDemo-shaped markup)
 // ---------------------------------------------------------------------------
 
+interface CartItem {
+  slug: string;
+  qty: number;
+}
+
 interface Session {
   user: string;
-  cart: string[];
+  cart: CartItem[];
 }
 const sessions = new Map<string, Session>();
 
@@ -241,7 +246,8 @@ function inventoryPage(db: Database.Database, session: Session): string {
       </div>`,
     )
     .join('');
-  const badge = session.cart.length ? `<span class="shopping_cart_badge">${session.cart.length}</span>` : '';
+  const unitCount = session.cart.reduce((sum, i) => sum + i.qty, 0);
+  const badge = unitCount ? `<span class="shopping_cart_badge">${unitCount}</span>` : '';
   return page(
     'Products',
     `<a data-test="order-history-link" href="/orders.html">Order history</a><a class="shopping_cart_link" href="/cart.html">${badge}</a><div class="inventory_list">${items}</div>`,
@@ -250,13 +256,39 @@ function inventoryPage(db: Database.Database, session: Session): string {
 
 function cartPage(db: Database.Database, session: Session): string {
   const items = session.cart
-    .map((slug) => listProducts(db).find((p) => p.slug === slug))
-    .filter((p): p is StoreProduct => Boolean(p))
+    .map((entry) => {
+      const p = listProducts(db).find((x) => x.slug === entry.slug);
+      if (!p) throw new Error(`cart contains unknown slug ${entry.slug}`);
+      return { entry, p };
+    })
     .map(
-      (p) => `<div class="cart_item"><div class="inventory_item_name">${p.name}</div><div class="inventory_item_price">$${p.price.toFixed(2)}</div></div>`,
+      ({ entry, p }) => `<div class="cart_item" data-test="cart-item" data-slug="${p.slug}">
+        <div class="inventory_item_name">${p.name}</div>
+        <div class="inventory_item_price">$${p.price.toFixed(2)}</div>
+        <form onsubmit="return updateQty(event, '${p.slug}')">
+          <input data-test="cart-qty" type="number" min="0" max="99" value="${entry.qty}" />
+          <button data-test="update-qty" type="submit">Update</button>
+        </form>
+        <div data-test="cart-line-total">$${(entry.qty * p.price).toFixed(2)}</div>
+      </div>`,
     )
     .join('');
-  return page('Your Cart', `${items}<a data-test="checkout" href="/checkout-step-one.html">Checkout</a>`);
+  const script = `<script>
+    async function updateQty(ev, slug) {
+      ev.preventDefault();
+      const input = ev.target.querySelector('[data-test="cart-qty"]');
+      const res = await fetch('/cart/set-qty', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug, qty: Number(input.value) }),
+      });
+      if (res.ok) { location.reload(); return false; }
+      const body = await res.json().catch(() => ({}));
+      document.querySelector('[data-test="cart-error"]').textContent = body.error || 'Could not update quantity';
+      return false;
+    }
+  </script>`;
+  return page('Your Cart', `${items}<p data-test="cart-error"></p>${script}<a data-test="checkout" href="/checkout-step-one.html">Checkout</a>`);
 }
 
 function checkoutInfoPage(): string {
@@ -272,15 +304,22 @@ function checkoutInfoPage(): string {
 }
 
 function checkoutOverviewPage(db: Database.Database, session: Session): string {
-  const lines = session.cart.map((slug) => {
-    const p = listProducts(db).find((x) => x.slug === slug);
-    if (!p) throw new Error(`cart contains unknown slug ${slug}`);
-    return { qty: 1, unitPriceCents: cents(p.price) };
+  const lines = session.cart.map((entry) => {
+    const p = listProducts(db).find((x) => x.slug === entry.slug);
+    if (!p) throw new Error(`cart contains unknown slug ${entry.slug}`);
+    return { name: p.name, qty: entry.qty, unitPriceCents: cents(p.price) };
   });
   const t = computeTotals(lines);
+  const items = lines
+    .map(
+      (l) =>
+        `<div class="cart_item"><span class="inventory_item_name">${l.name}</span> x${l.qty} <span data-test="overview-line-total">$${fmt(l.qty * l.unitPriceCents)}</span></div>`,
+    )
+    .join('');
   return page(
     'Checkout: Overview',
-    `<div class="summary_subtotal_label">Item total: $${fmt(t.subtotalCents)}</div>
+    `${items}
+     <div class="summary_subtotal_label">Item total: $${fmt(t.subtotalCents)}</div>
      <div class="summary_tax_label">Tax: $${fmt(t.taxCents)}</div>
      <div class="summary_total_label">Total: $${fmt(t.totalCents)}</div>
      <form method="post" action="/checkout/complete">
@@ -434,8 +473,34 @@ export async function startStoreServer(port = 0): Promise<RunningStore> {
       if (path === '/cart/add' && req.method === 'POST') {
         const form = new URLSearchParams(await readBody(req));
         const slug = form.get('slug');
-        if (slug) session.cart.push(slug);
+        if (slug) {
+          // One row per product (spec 003 FR-001): adding again counts up.
+          const existing = session.cart.find((i) => i.slug === slug);
+          if (existing) existing.qty = Math.min(existing.qty + 1, 99);
+          else session.cart.push({ slug, qty: 1 });
+        }
         return redirect(res, '/inventory.html');
+      }
+      if (path === '/cart/set-qty' && req.method === 'POST') {
+        // Validate everything before mutating (spec 003 FR-003/FR-004):
+        // a rejected request leaves the cart exactly as it was.
+        const raw = await readBody(req);
+        const isJson = (req.headers['content-type'] ?? '').includes('json');
+        const data: Record<string, unknown> = isJson
+          ? (JSON.parse(raw || '{}') as Record<string, unknown>)
+          : Object.fromEntries(new URLSearchParams(raw));
+        const slug = typeof data.slug === 'string' ? data.slug : '';
+        const qty = typeof data.qty === 'number' ? data.qty : Number(data.qty);
+        const fail = (message: string) =>
+          isJson ? sendJson(res, 400, { error: message }) : redirect(res, '/cart.html');
+        const entry = session.cart.find((i) => i.slug === slug);
+        if (!entry) return fail(`"${slug}" is not in the cart`);
+        if (!Number.isInteger(qty) || qty < 0 || qty > 99) {
+          return fail('quantity must be a whole number between 0 and 99');
+        }
+        if (qty === 0) session.cart = session.cart.filter((i) => i.slug !== slug);
+        else entry.qty = qty;
+        return isJson ? sendJson(res, 200, { ok: true }) : redirect(res, '/cart.html');
       }
       if (path === '/cart.html') return send(res, 200, cartPage(db, session));
       if (path === '/orders.html') return send(res, 200, ordersPage(db, session));
@@ -455,7 +520,7 @@ export async function startStoreServer(port = 0): Promise<RunningStore> {
         return send(res, 200, checkoutOverviewPage(db, session));
       }
       if (path === '/checkout/complete' && req.method === 'POST') {
-        const items = session.cart.map((slug) => ({ slug, qty: 1 }));
+        const items = session.cart.map((entry) => ({ slug: entry.slug, qty: entry.qty }));
         const result = createOrder(db, session.user, items);
         if ('error' in result) return send(res, 400, result.error, 'text/plain');
         session.cart = [];

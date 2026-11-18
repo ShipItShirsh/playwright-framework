@@ -49,4 +49,9 @@ export const sel = {
   orderLine: '[data-test="order-line"]',
   lineTotal: '[data-test="line-total"]',
   orderNotFound: '[data-test="order-not-found"]',
+  cartItemRow: (slug: string) => `.cart_item[data-slug="${slug}"]`,
+  cartQty: '[data-test="cart-qty"]',
+  updateQtyButton: '[data-test="update-qty"]',
+  cartLineTotal: '[data-test="cart-line-total"]',
+  overviewLineTotal: '[data-test="overview-line-total"]',
 } as const;

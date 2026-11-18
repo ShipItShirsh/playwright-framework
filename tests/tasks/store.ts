@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import ExcelJS from 'exceljs';
+import type { APIResponse, Page } from '@playwright/test';
 import { storeDbPath, type StoreOrder, type StoreProduct } from '../sut/store-server';
 
 /**
@@ -9,6 +10,21 @@ import { storeDbPath, type StoreOrder, type StoreProduct } from '../sut/store-se
  * The database is opened read-only — tests must never write to the
  * system they are verifying.
  */
+/**
+ * Set a cart quantity through the store's own endpoint, using the
+ * page's request context so the call carries the signed-in session
+ * cookie. Returns the raw response — specs assert on it (the invalid
+ * quantity tests need the 400, not a thrown error).
+ */
+export async function setCartQuantity(
+  page: Page,
+  baseURL: string,
+  slug: string,
+  qty: number,
+): Promise<APIResponse> {
+  return page.request.post(`${baseURL}/cart/set-qty`, { data: { slug, qty } });
+}
+
 export function readStoreProducts(): StoreProduct[] {
   const db = new Database(storeDbPath(), { readonly: true });
   try {

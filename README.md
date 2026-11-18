@@ -120,9 +120,11 @@ GitHub's Spec Kit. The rules every feature follows are in
 the layering, hard-assertion, and parity principles above, written
 down as gates. The features built this way so far are the demo store's
 order history ([specs/001-order-history/](specs/001-order-history/),
-tests in `tests/same-system/order-history.spec.ts`) and its order
+tests in `tests/same-system/order-history.spec.ts`), its order
 detail page ([specs/002-order-detail/](specs/002-order-detail/),
-tests in `tests/same-system/order-detail.spec.ts`).
+tests in `tests/same-system/order-detail.spec.ts`), and cart
+quantities ([specs/003-cart-quantities/](specs/003-cart-quantities/),
+tests in `tests/same-system/cart-quantities.spec.ts`).
 
 ## License
 
