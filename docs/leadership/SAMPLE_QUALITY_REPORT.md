@@ -5,7 +5,7 @@ The one-page format I give product and engineering leadership.
 
 ---
 
-**Week of:** [date] · **Release:** [version] · **QA Lead:** Shirsh Malviya
+**Week of:** [date] · **Release:** [version]
 **Recommendation:** SHIP / SHIP WITH RISKS / HOLD — [one sentence why]
 
 ## This week in three lines

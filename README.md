@@ -1,10 +1,5 @@
 # Playwright Portfolio Framework — TypeScript
 
-A clean-room, runnable portfolio framework by **Shirsh Malviya** — Senior QA / SDET.
-It demonstrates the architecture and patterns I use in enterprise test automation,
-rebuilt from scratch against public demo applications so anyone can clone and run it.
-No employer code, data, or credentials are included.
-
 ![Playwright Tests](https://github.com/ShipItShirsh/playwright-framework/actions/workflows/playwright.yml/badge.svg)
 
 ## Why I built this framework
@@ -127,12 +122,6 @@ down as gates. The first feature built this way is the demo store's
 order history: its spec, plan, and task list are in
 [specs/001-order-history/](specs/001-order-history/), and its tests
 are `tests/same-system/order-history.spec.ts`.
-
-## Author
-
-Shirsh Malviya — QA Engineering Lead / Senior SDET, ~13 years in test automation
-(Playwright/TypeScript and C#, Selenium, API + SQL validation, JMeter, CI/CD).
-Healthcare and e-commerce domains. Based in Mt. Juliet, TN (Nashville metro).
 
 ## License
 
